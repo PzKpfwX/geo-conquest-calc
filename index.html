@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17644e">
+  <meta name="description" content="Калькулятор навыков клана и личного опыта GeoConquest.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%2317644e' d='M24 2 44 13v22L24 46 4 35V13z'/%3E%3Cpath fill='none' stroke='white' stroke-width='3' d='m24 12 11 7v12l-11 7-11-7V19z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/src/styles.css">
+  <script type="module" src="/src/app.js"></script>
+  <title>GeoConquest — калькулятор клана</title>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">⬡</span> GeoConquest <span class="brand-divider"></span><span class="brand-subtitle">Калькулятор клана</span></div><span class="local-badge"><i></i> Всё в вашем браузере</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">ПЛАНИРУЙТЕ ВМЕСТЕ</p><h1>Каждое очко имеет значение.</h1><p class="intro">Соберите клан, настройте навыки и сравните получаемый опыт.</p></div><span class="page-emblem" aria-hidden="true">⬡</span></div>
+    <div id="storage-warning" class="notice" role="status" hidden></div>
+    <section aria-labelledby="clan-title">
+      <div class="section-heading"><div class="section-title"><span class="step">01</span><h2 id="clan-title">Ваш клан</h2><span id="member-count" class="count">0 игроков</span></div><span class="subtle desktop-only">Навыки пересчитываются автоматически</span></div>
+      <div id="stats" class="stats-grid" aria-live="polite"></div>
+      <div class="panel roster-panel">
+        <div class="panel-heading"><div><h3>Участники клана</h3><p>Один игрок — один навык. Все участники считаются активными.</p></div><button id="show-add" class="button primary" aria-expanded="false" aria-controls="add-form">+ Добавить игрока</button></div>
+        <div id="roster"></div>
+        <form id="add-form" class="add-form" hidden novalidate>
+          <label>Имя<input name="name" required placeholder="Имя игрока" autocomplete="off"><span class="field-error"></span></label>
+          <label>Уровень<input name="level" type="number" min="1" step="1" value="1" required inputmode="numeric"><span class="field-error"></span></label>
+          <label>Навык<select name="skill" required><option value="">Выберите навык</option></select><span class="field-error"></span></label>
+          <div class="form-actions"><button class="button primary" type="submit">Добавить</button><button id="cancel-add" class="button secondary" type="button">Отмена</button></div>
+        </form>
+        <div class="panel-foot"><span>Навык игрока = уровень − 1</span><span>Вес вклада: <strong>100% · 70% · 45% · 25% · далее 10%</strong></span></div>
+      </div>
+    </section>
+    <section aria-labelledby="xp-title">
+      <div class="section-heading"><div class="section-title"><span class="step">02</span><h2 id="xp-title">Расчёт опыта</h2></div><span class="subtle">Личный опыт</span></div>
+      <form id="xp-form" class="panel xp-panel" novalidate>
+        <div id="xp-fields" class="xp-fields"></div>
+        <div class="calculation-aside"><span class="small-tag">УДЕРЖАНИЕ · 24 ЧАСА</span><h3>От действий<br>к результату</h3><p id="holding-note"></p><button id="calculate" class="button primary" type="submit">Расчёт <span aria-hidden="true">↗</span></button><p id="calculation-hint" class="calculation-hint"></p></div>
+      </form>
+      <p class="formula-note">Используем линейные бонусы навыков. Территория в течение суток считается постоянной.</p>
+    </section>
+    <section aria-labelledby="history-title">
+      <div class="section-heading"><div class="section-title"><span class="step">03</span><h2 id="history-title">Журнал расчётов</h2><span id="history-count" class="count">0</span></div><button id="clear-history" class="button text-button" disabled>Очистить журнал</button></div>
+      <div class="history-help"><span>История хранится до перезагрузки страницы.</span><span><span class="up">↑ Рост</span><span class="down">↓ Снижение</span> относительно прошлого расчёта</span></div>
+      <div id="history"></div>
+      <p id="history-announcement" class="sr-only" aria-live="polite"></p>
+    </section>
+    <footer><span>GeoConquest <span class="footer-dot">/</span> Калькулятор клана</span><span>Игроки и поля сохраняются автоматически</span></footer>
+  </main>
+  <div id="toast" class="toast" role="status" hidden><span>Игрок удалён</span><button id="undo-delete">Отменить</button></div>
+  <dialog id="clear-dialog"><h2>Очистить журнал?</h2><p>Все расчёты этой сессии будут удалены.<br>Игроки и значения полей сохранятся.</p><form method="dialog"><button class="button secondary" value="cancel" autofocus>Отмена</button><button class="button danger" value="clear">Очистить</button></form></dialog>
+</body>
+</html>
