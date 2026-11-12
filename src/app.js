@@ -49,12 +49,12 @@ function renderStats() {
 }
 function renderRoster() {
   const drafts = new Map([...document.querySelectorAll('[data-member]')].map(row => [row.dataset.member,
-    [...row.querySelectorAll('input,select')].map(input => ({ name: input.name, value: input.value }))]));
+    [...row.querySelectorAll('input:not([type="checkbox"]),select')].map(input => ({ name: input.name, value: input.value }))]));
   $('#roster').innerHTML = state.members.length ? `<div class="table-header"><span>Имя</span><span>Уровень</span><span>Навык</span><span>Значение</span><span>Вклад в клан</span><span></span></div>${state.members.map(m => `<div class="member-row" data-member="${escapeHtml(m.id)}">
     <label><span class="sr-only mobile-label">Имя</span><input name="name" value="${escapeHtml(m.name)}" aria-label="Имя игрока" aria-describedby="name-error-${escapeHtml(m.id)}" required><span id="name-error-${escapeHtml(m.id)}" class="field-error"></span></label>
     <label><span class="sr-only mobile-label">Уровень</span><input name="level" type="number" min="1" step="1" inputmode="numeric" value="${m.level}" aria-label="Уровень игрока" aria-describedby="level-error-${escapeHtml(m.id)}" required><span id="level-error-${escapeHtml(m.id)}" class="field-error"></span></label>
     <label><span class="sr-only mobile-label">Навык</span><select name="skill" aria-label="Навык игрока">${skillOptions(m.skill)}</select><span class="field-error"></span></label>
-    <div class="points-cell"><span class="mobile-only subtle">Значение навыка</span><span data-points></span></div>
+    <div class="points-cell"><span class="mobile-only subtle">Значение навыка</span><span data-points></span><label class="activity-control"><input name="active" type="checkbox" ${m.active !== false ? 'checked' : ''}>Активен</label></div>
     <div class="contribution-cell"><span class="mobile-only subtle">Вклад в клан</span><span data-contribution></span></div>
     <button type="button" class="delete-member" aria-label="Удалить игрока ${escapeHtml(m.name)}" title="Удалить игрока">×</button>
   </div>`).join('')}` : '<div class="empty-roster"><span class="empty-symbol" aria-hidden="true">♧</span><h3>Большие планы начинаются с команды</h3><p>Добавьте первого игрока, чтобы рассчитать навыки клана.</p></div>';
@@ -105,7 +105,7 @@ $('#add-form').addEventListener('submit', event => {
   const fields = [...event.currentTarget.querySelectorAll('input,select')];
   if (!fields.map(validate).every(Boolean)) { fields.find(f => f.getAttribute('aria-invalid') === 'true').focus(); return; }
   const data = new FormData(event.currentTarget);
-  state.members.push({ id: crypto.randomUUID(), name: data.get('name').trim(), level: Number(data.get('level')), skill: data.get('skill') });
+  state.members.push({ id: crypto.randomUUID(), name: data.get('name').trim(), level: Number(data.get('level')), skill: data.get('skill'), active: true });
   event.currentTarget.reset();
   fields.forEach(f => f.removeAttribute('aria-invalid'));
   closeAdd(); renderRoster(); persist();
@@ -113,6 +113,12 @@ $('#add-form').addEventListener('submit', event => {
 $('#roster').addEventListener('input', event => {
   const input = event.target;
   if (!input.matches('input,select')) return;
+  if (input.name === 'active') {
+    const member = state.members.find(m => m.id === input.closest('[data-member]').dataset.member);
+    member.active = input.checked;
+    persist(); renderStats();
+    return;
+  }
   if (validate(input)) {
     const member = state.members.find(m => m.id === input.closest('[data-member]').dataset.member);
     member[input.name] = input.name === 'level' ? Number(input.value) : input.value.trim();
@@ -146,7 +152,7 @@ $('#xp-fields').addEventListener('input', event => {
 });
 $('#xp-form').addEventListener('submit', event => {
   event.preventDefault();
-  const fields = [...document.querySelectorAll('#roster input, #roster select, #xp-fields input')];
+  const fields = [...document.querySelectorAll('#roster input:not([type="checkbox"]), #roster select, #xp-fields input')];
   if (!fields.map(validate).every(Boolean) || !state.members.length) { updateAvailability(); return; }
   history.push(makeRecord(state.members, state.inputs, ++sequence));
   renderHistory();

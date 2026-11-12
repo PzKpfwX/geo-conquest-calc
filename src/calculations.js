@@ -22,15 +22,19 @@ export function isInteger(value, min = 0) {
 export function validMember(member) {
   return member && typeof member.id === 'string' && member.id.length > 0 &&
     typeof member.name === 'string' && member.name.trim().length > 0 &&
-    isInteger(member.level, 1) && SKILLS.some(s => s.id === member.skill);
+    isInteger(member.level, 1) && SKILLS.some(s => s.id === member.skill) &&
+    (member.active === undefined || typeof member.active === 'boolean');
 }
 export function calculateClan(members) {
   if (!members.every(validMember)) throw new RangeError('Некорректные данные игрока');
   const stats = {};
   const contributions = {};
+  for (const member of members) {
+    contributions[member.id] = { points: Number(member.level) - 1, weight: 0, value: 0 };
+  }
   for (const skill of SKILLS) {
     // Stable sort preserves roster order when levels match.
-    const ranked = members.filter(m => m.skill === skill.id).toSorted((a, b) => b.level - a.level);
+    const ranked = members.filter(m => m.active !== false && m.skill === skill.id).toSorted((a, b) => b.level - a.level);
     let weightedPoints = 0;
     ranked.forEach((member, index) => {
       const weight = [100, 70, 45, 25][index] ?? 10;
@@ -38,7 +42,8 @@ export function calculateClan(members) {
       weightedPoints += points * weight;
       contributions[member.id] = { points, weight, value: points * weight / 100 };
     });
-    stats[skill.id] = weightedPoints / 100;
+    // Truncate only the final sum, preserving each member's fractional contribution.
+    stats[skill.id] = Math.floor(weightedPoints / 100);
   }
   return { stats, contributions };
 }
@@ -50,10 +55,10 @@ export function calculateXp(inputs, stats, memberCount) {
     throw new RangeError('Некорректные навыки');
   }
   const result = {
-    move: 5 * inputs.walked * (1 + 0.05 * stats.tempo),
-    neutral: 4 * inputs.neutral * (1 + 0.04 * stats.expansion),
-    enemy: 8 * inputs.enemy * (1 + 0.04 * stats.expansion),
-    holding: 0.003 * inputs.territory ** 0.7 * 288 / memberCount * (1 + 0.03 * stats.income),
+    move: 5 * inputs.walked * (1 + 0.05 * Math.floor(stats.tempo)),
+    neutral: 4 * inputs.neutral * (1 + 0.04 * Math.floor(stats.expansion)),
+    enemy: 8 * inputs.enemy * (1 + 0.04 * Math.floor(stats.expansion)),
+    holding: 0.003 * inputs.territory ** 0.7 * 288 / memberCount * (1 + 0.03 * Math.floor(stats.income)),
   };
   result.total = Object.values(result).reduce((sum, value) => sum + value, 0);
   return result;

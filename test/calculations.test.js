@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { calculateClan, calculateXp, makeRecord, isInteger, comparison } from '../src/calculations.js';
 import { emptyState, loadState, saveState, STORAGE_KEY } from '../src/storage.js';
 
-const member = (id, level, skill = 'tempo') => ({ id, name: id, level, skill });
+const member = (id, level, skill = 'tempo') => ({ id, name: id, level, skill, active: true });
 const zeroInputs = () => emptyState().inputs;
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 
@@ -21,11 +21,28 @@ test('Each skill has its own ranking, weights extend beyond the fourth member', 
 });
 test('Equal levels preserve roster order; level one contributes zero', () => {
   const result = calculateClan([member('a', 2), member('b', 2), member('c', 1)]);
-  assert.equal(result.stats.tempo, 1.7);
+  assert.equal(result.stats.tempo, 1);
   assert.equal(result.contributions.a.weight, 100);
   assert.equal(result.contributions.b.weight, 70);
   assert.equal(result.contributions.c.value, 0);
   assert.ok(Object.values(calculateClan([]).stats).every(value => value === 0));
+});
+test('Skills truncate after summing contributions, and XP uses whole skill values', () => {
+  const players = ['assault', 'resilience', 'expansion', 'tempo', 'income'].flatMap(skill =>
+    [member(`${skill}-a`, 3, skill), member(`${skill}-b`, 3, skill), member(`${skill}-c`, 3, skill)]);
+  const { stats, contributions } = calculateClan(players);
+  assert.ok(Object.values(stats).every(value => value === 4)); // 2 + 1.4 + 0.9 = 4.3
+  assert.equal(contributions['tempo-b'].value, 1.4);
+  assert.equal(contributions['tempo-c'].value, 0.9);
+  const inputs = { territory: 100, walked: 10, neutral: 10, enemy: 10 };
+  const fractional = Object.fromEntries(Object.keys(stats).map(key => [key, 4.99]));
+  assert.deepEqual(calculateXp(inputs, fractional, players.length), calculateXp(inputs, stats, players.length));
+  const record = makeRecord(players, inputs, 1);
+  assert.deepEqual(record.stats, stats);
+  close(record.xp.move, 60);
+  close(record.xp.neutral, 46.4);
+  close(record.xp.enemy, 92.8);
+  close(record.xp.holding, 0.003 * 100 ** 0.7 * 288 / players.length * 1.12);
 });
 test('Personal XP applies clan bonuses and divides only holding XP', () => {
   const stats = { assault: 200, resilience: 100, tempo: 10, expansion: 20, income: 30 };
@@ -65,9 +82,42 @@ test('Comparison reflects displayed precision, not invisible floating-point diff
   assert.equal(comparison(1, 1.01), 'down');
   assert.equal(comparison(42, undefined), '');
 });
+test('Inactive players contribute zero and do not occupy skill ranks', () => {
+  const players = [member('leader', 101), member('second', 11), member('third', 6)];
+  players[0].active = false;
+  const { stats, contributions } = calculateClan(players);
+  assert.equal(stats.tempo, 13);
+  assert.deepEqual(contributions.leader, { points: 100, weight: 0, value: 0 });
+  assert.equal(contributions.second.weight, 100);
+  assert.equal(contributions.third.weight, 70);
+  const inputs = { territory: 100, walked: 10, neutral: 0, enemy: 0 };
+  const record = makeRecord(players, inputs, 1);
+  assert.equal(record.members, 3);
+  assert.deepEqual(record.xp, calculateXp(inputs, stats, 3));
+  players[0].active = true;
+  assert.equal(calculateClan(players).stats.tempo, 109);
+  assert.equal(record.stats.tempo, 13);
+  players.forEach(player => { player.active = false; });
+  assert.ok(Object.values(calculateClan(players).stats).every(value => value === 0));
+  assert.doesNotThrow(() => makeRecord(players, inputs, 2));
+});
+test('Legacy players default to active; saved inactivity survives reload', () => {
+  const legacy = member('legacy', 11);
+  delete legacy.active;
+  const inactive = { ...member('inactive', 101), active: false };
+  const saved = { version: 1, members: [legacy, inactive], inputs: zeroInputs() };
+  const storage = { getItem() { return JSON.stringify(saved); } };
+  const { state, error } = loadState(storage);
+  assert.equal(error, '');
+  assert.equal(state.members[0].active, true);
+  assert.equal(state.members[1].active, false);
+  assert.equal(calculateClan(state.members).stats.tempo, 10);
+  assert.equal(calculateClan([legacy]).stats.tempo, 10);
+  assert.throws(() => calculateClan([{ ...legacy, active: 'false' }]), RangeError);
+});
 test('Storage roundtrip saves only roster and inputs, never history', () => {
   const storage = { data: new Map(), getItem(key) { return this.data.get(key); }, setItem(key, value) { this.data.set(key, value); } };
-  const state = { members: [member('a', 51)], inputs: zeroInputs(), history: [{ number: 1 }] };
+  const state = { members: [member('a', 51), { ...member('b', 100), active: false }], inputs: zeroInputs(), history: [{ number: 1 }] };
   assert.equal(saveState(storage, state), '');
   assert.equal(JSON.parse(storage.getItem(STORAGE_KEY)).history, undefined);
   assert.deepEqual(loadState(storage).state, { members: state.members, inputs: state.inputs });
