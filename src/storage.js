@@ -11,7 +11,7 @@ export function loadState(storage) {
         new Set(saved.members.map(m => m.id)).size !== saved.members.length ||
         !INPUTS.every(f => isInteger(saved.inputs?.[f.id]))) throw new Error('Invalid saved data');
     return { state: {
-      members: saved.members.map(m => ({ id: m.id, name: m.name.trim(), level: Number(m.level), skill: m.skill })),
+      members: saved.members.map(m => ({ id: m.id, name: m.name.trim(), level: Number(m.level), skill: m.skill, active: m.active !== false })),
       inputs: Object.fromEntries(INPUTS.map(f => [f.id, Number(saved.inputs[f.id])])),
     }, error: '' };
   } catch {
