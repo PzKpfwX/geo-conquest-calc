@@ -53,7 +53,10 @@ function renderRoster() {
   $('#roster').innerHTML = state.members.length ? `<div class="table-header"><span>Имя</span><span>Уровень</span><span>Навык</span><span>Значение</span><span>Вклад в клан</span><span></span></div>${state.members.map(m => `<div class="member-row" data-member="${escapeHtml(m.id)}">
     <label><span class="sr-only mobile-label">Имя</span><input name="name" value="${escapeHtml(m.name)}" aria-label="Имя игрока" aria-describedby="name-error-${escapeHtml(m.id)}" required><span id="name-error-${escapeHtml(m.id)}" class="field-error"></span></label>
     <label><span class="sr-only mobile-label">Уровень</span><input name="level" type="number" min="1" step="1" inputmode="numeric" value="${m.level}" aria-label="Уровень игрока" aria-describedby="level-error-${escapeHtml(m.id)}" required><span id="level-error-${escapeHtml(m.id)}" class="field-error"></span></label>
-    <label><span class="sr-only mobile-label">Навык</span><select name="skill" aria-label="Навык игрока">${skillOptions(m.skill)}</select><span class="field-error"></span></label>
+    <div class="skill-cell">
+      <label><span class="sr-only mobile-label">Навык</span><select name="skill" aria-label="Навык игрока">${skillOptions(m.skill)}</select><span class="field-error"></span></label>
+      <button type="button" class="button secondary boost-member" aria-pressed="${m.boosted === true}" aria-label="Усилок для игрока ${escapeHtml(m.name)}" title="+10 к выбранному навыку">Усилок</button>
+    </div>
     <div class="points-cell"><span class="mobile-only subtle">Значение навыка</span><span data-points></span><label class="activity-control"><input name="active" type="checkbox" ${m.active !== false ? 'checked' : ''}>Активен</label></div>
     <div class="contribution-cell"><span class="mobile-only subtle">Вклад в клан</span><span data-contribution></span></div>
     <button type="button" class="delete-member" aria-label="Удалить игрока ${escapeHtml(m.name)}" title="Удалить игрока">×</button>
@@ -105,7 +108,7 @@ $('#add-form').addEventListener('submit', event => {
   const fields = [...event.currentTarget.querySelectorAll('input,select')];
   if (!fields.map(validate).every(Boolean)) { fields.find(f => f.getAttribute('aria-invalid') === 'true').focus(); return; }
   const data = new FormData(event.currentTarget);
-  state.members.push({ id: crypto.randomUUID(), name: data.get('name').trim(), level: Number(data.get('level')), skill: data.get('skill'), active: true });
+  state.members.push({ id: crypto.randomUUID(), name: data.get('name').trim(), level: Number(data.get('level')), skill: data.get('skill'), active: true, boosted: false });
   event.currentTarget.reset();
   fields.forEach(f => f.removeAttribute('aria-invalid'));
   closeAdd(); renderRoster(); persist();
@@ -122,12 +125,24 @@ $('#roster').addEventListener('input', event => {
   if (validate(input)) {
     const member = state.members.find(m => m.id === input.closest('[data-member]').dataset.member);
     member[input.name] = input.name === 'level' ? Number(input.value) : input.value.trim();
-    if (input.name === 'name') input.closest('[data-member]').querySelector('.delete-member').setAttribute('aria-label', `Удалить игрока ${member.name}`);
+    if (input.name === 'name') {
+      const row = input.closest('[data-member]');
+      row.querySelector('.delete-member').setAttribute('aria-label', `Удалить игрока ${member.name}`);
+      row.querySelector('.boost-member').setAttribute('aria-label', `Усилок для игрока ${member.name}`);
+    }
     persist(); renderStats();
   }
   updateAvailability();
 });
 $('#roster').addEventListener('click', event => {
+  const boost = event.target.closest('.boost-member');
+  if (boost) {
+    const member = state.members.find(m => m.id === boost.closest('[data-member]').dataset.member);
+    member.boosted = !member.boosted;
+    boost.setAttribute('aria-pressed', String(member.boosted));
+    persist(); renderStats();
+    return;
+  }
   if (!event.target.closest('.delete-member')) return;
   const row = event.target.closest('[data-member]');
   const index = state.members.findIndex(m => m.id === row.dataset.member);

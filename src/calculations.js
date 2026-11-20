@@ -19,26 +19,33 @@ export function isInteger(value, min = 0) {
   return (typeof value === 'number' || typeof value === 'string') &&
     String(value).trim() !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= min;
 }
+const BOOST_POINTS = 10;
+const HOLDING_TICKS_PER_DAY = 288;
+const BOOSTED_HOLDING_TICKS = 24;
+
 export function validMember(member) {
   return member && typeof member.id === 'string' && member.id.length > 0 &&
     typeof member.name === 'string' && member.name.trim().length > 0 &&
     isInteger(member.level, 1) && SKILLS.some(s => s.id === member.skill) &&
-    (member.active === undefined || typeof member.active === 'boolean');
+    (member.active === undefined || typeof member.active === 'boolean') &&
+    (member.boosted === undefined || typeof member.boosted === 'boolean');
 }
-export function calculateClan(members) {
+export function calculateClan(members, { includeBoosts = true } = {}) {
   if (!members.every(validMember)) throw new RangeError('Некорректные данные игрока');
   const stats = {};
   const contributions = {};
   for (const member of members) {
-    contributions[member.id] = { points: Number(member.level) - 1, weight: 0, value: 0 };
+    const points = Number(member.level) - 1 + (includeBoosts && member.boosted ? BOOST_POINTS : 0);
+    contributions[member.id] = { points, weight: 0, value: 0 };
   }
   for (const skill of SKILLS) {
-    // Stable sort preserves roster order when levels match.
-    const ranked = members.filter(m => m.active !== false && m.skill === skill.id).toSorted((a, b) => b.level - a.level);
+    // Stable sort preserves roster order when effective skill values match.
+    const ranked = members.filter(m => m.active !== false && m.skill === skill.id)
+      .toSorted((a, b) => contributions[b.id].points - contributions[a.id].points);
     let weightedPoints = 0;
     ranked.forEach((member, index) => {
       const weight = [100, 70, 45, 25][index] ?? 10;
-      const points = Number(member.level) - 1;
+      const { points } = contributions[member.id];
       weightedPoints += points * weight;
       contributions[member.id] = { points, weight, value: points * weight / 100 };
     });
@@ -47,27 +54,32 @@ export function calculateClan(members) {
   }
   return { stats, contributions };
 }
-export function calculateXp(inputs, stats, memberCount) {
+export function calculateXp(inputs, stats, memberCount, baseIncome = stats.income) {
   if (!isInteger(memberCount, 1) || !INPUTS.every(f => isInteger(inputs[f.id]))) {
     throw new RangeError('Нужны участники и целые неотрицательные количества ячеек');
   }
-  if (!SKILLS.every(s => Number.isFinite(stats[s.id]) && stats[s.id] >= 0)) {
+  if (!SKILLS.every(s => Number.isFinite(stats[s.id]) && stats[s.id] >= 0) ||
+      !Number.isFinite(baseIncome) || baseIncome < 0 || baseIncome > stats.income) {
     throw new RangeError('Некорректные навыки');
   }
+  const baseHoldingMultiplier = 1 + 0.03 * Math.floor(baseIncome);
+  const boostedIncomeBonus = 0.03 * (Math.floor(stats.income) - Math.floor(baseIncome));
+  const holdingMultiplier = baseHoldingMultiplier + boostedIncomeBonus * BOOSTED_HOLDING_TICKS / HOLDING_TICKS_PER_DAY;
   const result = {
     move: 5 * inputs.walked * (1 + 0.05 * Math.floor(stats.tempo)),
     neutral: 4 * inputs.neutral * (1 + 0.04 * Math.floor(stats.expansion)),
     enemy: 8 * inputs.enemy * (1 + 0.04 * Math.floor(stats.expansion)),
-    holding: 0.003 * inputs.territory ** 0.7 * 288 / memberCount * (1 + 0.03 * Math.floor(stats.income)),
+    holding: 0.003 * inputs.territory ** 0.7 * HOLDING_TICKS_PER_DAY / memberCount * holdingMultiplier,
   };
   result.total = Object.values(result).reduce((sum, value) => sum + value, 0);
   return result;
 }
 export function makeRecord(members, inputs, number, date = new Date()) {
   const { stats } = calculateClan(members);
+  const { stats: baseStats } = calculateClan(members, { includeBoosts: false });
   return {
     number, date: date.toISOString(), inputs: { ...inputs }, members: members.length,
-    stats, xp: calculateXp(inputs, stats, members.length),
+    stats, xp: calculateXp(inputs, stats, members.length, baseStats.income),
   };
 }
 export const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
